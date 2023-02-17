@@ -12,3 +12,12 @@ https://new.qq.com/rain/a/20210312A08MGH00
 Tiny
 https://github.com/OpenAtomFoundation/TencentOS-tiny
 ```
+
+```
+# deb http://snapshot.debian.org/archive/debian/20211220T000000Z bullseye main
+deb http://mirrors.aliyun.com/debian bullseye main
+# deb http://snapshot.debian.org/archive/debian-security/20211220T000000Z bullseye-security main
+deb http://mirrors.aliyun.com/debian-security bullseye-security main
+# deb http://snapshot.debian.org/archive/debian/20211220T000000Z bullseye-updates main
+deb http://mirrors.aliyun.com/debian bullseye-updates main
+```
