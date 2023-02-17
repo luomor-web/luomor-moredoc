@@ -1,3 +1,7 @@
 sudo -v && wget -nv -O- https://download.calibre-ebook.com/linux-installer.py | sudo python -c "import sys; main=lambda:sys.stderr.write('Download failed\n'); exec(sys.stdin.read()); main()"
 bash: wget: command not found
 sudo: python: command not found
+
+sudo -v && wget -nv -O- https://download.calibre-ebook.com/linux-installer.py | sudo python -c "import sys; main=lambda:sys.stderr.write('Download failed\n'); exec(sys.stdin.read()); main()"
+2023-02-17 09:51:57 URL:https://download.calibre-ebook.com/linux-installer.py [32026/32026] -> "-" [1]
+You are missing the system library libEGL.so.1. Try installing packages such as libegl1 and libopengl0
