@@ -7,6 +7,13 @@ sudo docker run --name moredoc --privileged -itd -p 8880:8880 -v "$(pwd)"/moredo
 sudo docker exec -it moredoc bash
 apt-get update
 apt-get install vim
+apt-get install sudo
+apt-get install wget
+apt-get install python
+
+https://www.bookstack.cn/read/moredoc/install-linux.md
+https://www.bookstack.cn/read/dochub/env-calibre.md
+sudo -v && wget -nv -O- https://download.calibre-ebook.com/linux-installer.py | sudo python -c "import sys; main=lambda:sys.stderr.write('Download failed\n'); exec(sys.stdin.read()); main()"
 
 https://new.qq.com/rain/a/20210312A08MGH00
 Tiny
