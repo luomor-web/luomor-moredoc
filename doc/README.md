@@ -12,6 +12,10 @@ apt-get install wget
 apt-get install python
 apt-get install libgl1-mesa-glx
 sudo apt-get install build-essential
+apt-get install libegl1
+apt-get install libopengl0
+
+libegl1 and libopengl0
 
 https://www.bookstack.cn/read/moredoc/install-linux.md
 https://www.bookstack.cn/read/dochub/env-calibre.md
