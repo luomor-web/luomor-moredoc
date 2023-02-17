@@ -22,6 +22,7 @@ https://www.bookstack.cn/read/dochub/env-calibre.md
 sudo -v && wget -nv -O- https://download.calibre-ebook.com/linux-installer.py | sudo python -c "import sys; main=lambda:sys.stderr.write('Download failed\n'); exec(sys.stdin.read()); main()"
 
 https://code.calibre-ebook.com/signatures
+docker pull linuxserver/calibre
 
 https://new.qq.com/rain/a/20210312A08MGH00
 Tiny
