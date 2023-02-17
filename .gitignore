@@ -14,3 +14,6 @@ indexes
 sitemap
 !util/sitemap
 license.cert
+
+.DS_Store
+.idea
