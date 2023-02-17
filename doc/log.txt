@@ -5,3 +5,10 @@ sudo: python: command not found
 sudo -v && wget -nv -O- https://download.calibre-ebook.com/linux-installer.py | sudo python -c "import sys; main=lambda:sys.stderr.write('Download failed\n'); exec(sys.stdin.read()); main()"
 2023-02-17 09:51:57 URL:https://download.calibre-ebook.com/linux-installer.py [32026/32026] -> "-" [1]
 You are missing the system library libEGL.so.1. Try installing packages such as libegl1 and libopengl0
+
+sudo -v && wget -nv -O- https://download.calibre-ebook.com/linux-installer.py | sudo python -c "import sys; main=lambda:sys.stderr.write('Download failed\n'); exec(sys.stdin.read()); main()"
+2023-02-17 10:10:27 URL:https://download.calibre-ebook.com/linux-installer.py [32026/32026] -> "-" [1]
+Installing to /opt/calibre
+Downloading tarball signature securely...
+Will download and install calibre-6.13.0-x86_64.txz
+Downloading calibre-6.13.0-x86_64.txz
