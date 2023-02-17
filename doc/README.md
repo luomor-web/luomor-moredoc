@@ -10,6 +10,7 @@ apt-get install vim
 apt-get install sudo
 apt-get install wget
 apt-get install python
+apt-get install libgl1-mesa-glx
 
 https://www.bookstack.cn/read/moredoc/install-linux.md
 https://www.bookstack.cn/read/dochub/env-calibre.md
