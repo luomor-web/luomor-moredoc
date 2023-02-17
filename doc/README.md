@@ -10,8 +10,8 @@ apt-get install vim
 apt-get install sudo
 apt-get install wget
 apt-get install python
-apt-get install libgl1-mesa-glx
-sudo apt-get install build-essential
+# apt-get install libgl1-mesa-glx
+# sudo apt-get install build-essential
 apt-get install libegl1
 apt-get install libopengl0
 
