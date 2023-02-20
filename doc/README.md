@@ -49,6 +49,9 @@ https://www.bookstack.cn/read/moredoc/install-linux.md
 https://www.bookstack.cn/read/dochub/env-calibre.md
 sudo -v && wget -nv -O- https://download.calibre-ebook.com/linux-installer.py | sudo python -c "import sys; main=lambda:sys.stderr.write('Download failed\n'); exec(sys.stdin.read()); main()"
 
+docker build -t truthhun/dochub:v2.3 .
+docker run -d -p 8090:8090 --name dochub-v2.3 truthhun/dochub:v2.3
+
 https://code.calibre-ebook.com/signatures
 docker pull linuxserver/calibre
 
