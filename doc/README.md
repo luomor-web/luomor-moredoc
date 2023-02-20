@@ -11,6 +11,8 @@ sudo docker run -itd linuxserver/calibre
 
 docker run -d --name=calibre -p 8083:8083 -v /calibre/config:/config -v /calibre/books:/books technosoft2000/calibre-web
 
+sudo docker exec -it calibre bash
+
 sudo docker exec -it moredoc bash
 sudo docker stop moredoc
 sudo docker start moredoc
