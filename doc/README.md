@@ -26,6 +26,9 @@ apt-get install python
 # sudo apt-get install build-essential
 apt-get install libegl1
 apt-get install libopengl0
+
+libegl1 and libopengl0
+
 sudo apt-get install net-tools
 sudo apt-get install openssh-server
 sudo apt-get install build-essential
@@ -41,8 +44,6 @@ tar -xf qt-everywhere-src-6.4.0.tar
 tar -Jxf qt-everywhere-src-6.4.0.tar.xz
 
 sudo dpkg -i libxcb-util1_0.4.0-1+b1_amd64.deb
-
-libegl1 and libopengl0
 
 https://www.bookstack.cn/read/moredoc/install-linux.md
 https://www.bookstack.cn/read/dochub/env-calibre.md
