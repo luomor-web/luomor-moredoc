@@ -5,6 +5,9 @@ sudo docker pull ubuntu:20.04
 sudo docker run --name moredoc --privileged -itd -p 8880:8880 -v "$(pwd)"/moredoc:/moredoc ubuntu:20.04
 
 sudo docker exec -it moredoc bash
+sudo docker stop moredoc
+sudo docker start moredoc
+sudo docker rm moredoc
 apt-get update
 apt-get install vim
 apt-get install sudo
