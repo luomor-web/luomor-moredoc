@@ -12,6 +12,9 @@ sudo docker run -itd linuxserver/calibre
 docker run -d --name=calibre -p 8083:8083 -v /calibre/config:/config -v /calibre/books:/books technosoft2000/calibre-web
 
 docker create --name=calibre -v /calibre/config:/config -v /calibre/books:/books -p 8083:8083 ctiself/calibre-web
+docker start calibre
+
+docker run -d --name=calibre -p 8083:8083 -v /calibre/config:/config -v /calibre/books:/books ctiself/calibre-web
 
 sudo docker exec -it calibre bash
 https://github.com/janeczku/calibre-web
