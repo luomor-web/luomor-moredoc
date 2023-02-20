@@ -55,4 +55,5 @@ deb http://mirrors.aliyun.com/debian bullseye-updates main
 
 ```
 apt-get install qt6
+libQt6Core.so.6: cannot open shared object file: No such file or directory
 ```
