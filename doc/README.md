@@ -14,6 +14,12 @@ apt-get install python
 # sudo apt-get install build-essential
 apt-get install libegl1
 apt-get install libopengl0
+sudo apt-get install net-tools
+sudo apt-get install openssh-server
+sudo apt-get install build-essential
+sudo apt-get install libgl1-mesa-dev
+sudo apt-get install gdb
+https://www.cnblogs.com/Jankin-Wen/p/15647042.html
 
 libegl1 and libopengl0
 
@@ -36,4 +42,8 @@ deb http://mirrors.aliyun.com/debian bullseye main
 deb http://mirrors.aliyun.com/debian-security bullseye-security main
 # deb http://snapshot.debian.org/archive/debian/20211220T000000Z bullseye-updates main
 deb http://mirrors.aliyun.com/debian bullseye-updates main
+```
+
+```
+apt-get install qt6
 ```
