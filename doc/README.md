@@ -20,6 +20,12 @@ sudo apt-get install build-essential
 sudo apt-get install libgl1-mesa-dev
 sudo apt-get install gdb
 https://www.cnblogs.com/Jankin-Wen/p/15647042.html
+wget https://download.qt.io/archive/qt/6.4/6.4.0/single/qt-everywhere-src-6.4.0.tar.xz
+wget http://ftp.br.debian.org/debian/pool/main/x/xcb-util/libxcb-util1_0.4.0-1+b1_amd64.deb
+
+xz -d qt-everywhere-src-6.4.0.tar.xz
+
+sudo dpkg -i libxcb-util1_0.4.0-1+b1_amd64.deb
 
 libegl1 and libopengl0
 
