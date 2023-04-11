@@ -62,7 +62,13 @@
       v-if="total > 0"
       :current-page="query.page"
       :page-size="query.size"
-      layout="total,  prev, pager, next, jumper"
+      :layout="
+        isMobile
+          ? 'total, prev, pager, next'
+          : 'total, prev, pager, next, jumper'
+      "
+      :pager-count="isMobile ? 5 : 7"
+      :small="isMobile"
       :total="total"
     >
     </el-pagination>
@@ -70,6 +76,7 @@
 </template>
 
 <script>
+import { mapGetters } from 'vuex'
 import { deleteFavorite, listFavorite } from '~/api/favorite'
 import {
   formatDatetime,
@@ -105,10 +112,9 @@ export default {
       immediate: true,
     },
   },
-  // created() {
-  //   console.log('created')
-  //   this.getFavorites()
-  // },
+  computed: {
+    ...mapGetters('device', ['isMobile']),
+  },
   methods: {
     formatDatetime,
     formatRelativeTime,

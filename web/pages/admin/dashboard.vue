@@ -1,6 +1,80 @@
 <template>
   <div class="page-admin-dashboard">
     <el-card shadow="never">
+      <div slot="header">服务器状态</div>
+      <el-row :gutter="20" class="gauges">
+        <el-col
+          :span="6"
+          :xs="12"
+          :sm="8"
+          :md="6"
+          :lg="6"
+          v-for="(gauge, index) in gauges"
+          :key="'gauge' + index"
+        >
+          <v-chart class="chart" autoresize :option="gauge" />
+          <div class="text-center">
+            <ul>
+              <li v-for="(item, index) in gauge.labels" :key="'label-' + index">
+                <small v-if="item.label">{{ item.label }} : </small
+                >{{ item.value }}
+              </li>
+            </ul>
+          </div>
+        </el-col>
+      </el-row>
+    </el-card>
+    <el-card shadow="never" class="mgt-20px">
+      <div slot="header">
+        <span>授权信息</span>
+      </div>
+      <el-descriptions class="margin-top" :column="2" border>
+        <el-descriptions-item>
+          <template slot="label">
+            <i class="el-icon-tickets"></i>
+            最大文档数
+          </template>
+          不限
+        </el-descriptions-item>
+        <el-descriptions-item>
+          <template slot="label">
+            <i class="el-icon-user"></i>
+            最大用户数
+          </template>
+          不限
+        </el-descriptions-item>
+        <el-descriptions-item>
+          <template slot="label">
+            <i class="el-icon-cpu"></i>
+            授权协议
+          </template>
+          Apache License 2.0
+        </el-descriptions-item>
+        <el-descriptions-item>
+          <template slot="label">
+            <i class="el-icon-time"></i>
+            授权截止日期
+          </template>
+          <span>-</span>
+        </el-descriptions-item>
+        <el-descriptions-item>
+          <template slot="label">
+            <i class="el-icon-guide"></i>
+            授权类型
+          </template>
+          <span class="opensource">
+            <span>魔豆文库 · 社区版</span>
+            （<a
+              href="https://www.bookstack.cn/read/moredoc/price.md"
+              target="_blank"
+              class="el-link el-link--primary"
+              >版本划分与定价策略 <i class="el-icon-top-right"></i> </a
+            >）
+          </span>
+        </el-descriptions-item>
+      </el-descriptions>
+    </el-card>
+    <el-card shadow="never" class="mgt-20px">
       <div slot="header">数据统计</div>
       <el-descriptions class="margin-top" :column="3" border>
         <el-descriptions-item>
@@ -76,12 +150,12 @@
         empty-text="您暂无权限查看环境依赖情况"
       >
         <el-table-column prop="name" label="名称" width="100"> </el-table-column
-        ><el-table-column prop="is_required" label="是否必需" width="100">
+        ><el-table-column prop="is_required" label="是否必须" width="100">
           <template slot-scope="scope">
             <el-tag v-if="scope.row.is_required" effect="danger" size="small"
-              >必需安装</el-tag
+              >必须安装</el-tag
             >
-            <el-tag effect="info" size="small" v-else>非必需</el-tag>
+            <el-tag effect="info" size="small" v-else>非必须</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="is_installed" label="安装" width="100">
@@ -149,13 +223,13 @@
           <b>T</b>echnology Co., <b>Ltd</b>.
         </el-descriptions-item>
         <el-descriptions-item>
-          <template slot="label"> 服务支持邮箱 </template>
+          <template slot="label"> 服务邮箱 </template>
           <a href="mailto:truthhun@mnt.ltd" class="el-link el-link--primary"
             >truthhun@mnt.ltd</a
           >
         </el-descriptions-item>
         <el-descriptions-item>
-          <template slot="label"> 服务支持官网 </template>
+          <template slot="label"> 服务官网 </template>
           <a
             href="https://mnt.ltd"
             class="el-link el-link--primary"
@@ -165,7 +239,7 @@
           >
         </el-descriptions-item>
         <el-descriptions-item>
-          <template slot="label"> 程序使用手册 </template>
+          <template slot="label"> 使用手册 </template>
           <a
             href="https://www.bookstack.cn/books/moredoc"
             class="el-link el-link--primary"
@@ -175,7 +249,7 @@
           >
         </el-descriptions-item>
         <el-descriptions-item>
-          <template slot="label"> 程序开源地址 </template>
+          <template slot="label"> 开源地址 </template>
           <ul class="opensource">
             <li>
               MNT：
@@ -215,8 +289,30 @@
 </template>
 
 <script>
-import { getStats, getEnvs, updateSitemap } from '~/api/config'
-import { formatDatetime } from '~/utils/utils'
+import { getStats, getEnvs, updateSitemap, getDevice } from '~/api/config'
+import { formatDatetime, formatBytes } from '~/utils/utils'
+import { use } from 'echarts/core'
+import { CanvasRenderer } from 'echarts/renderers'
+import { PieChart, GaugeChart } from 'echarts/charts'
+import { UniversalTransition } from 'echarts/features'
+import {
+  TitleComponent,
+  TooltipComponent,
+  LegendComponent,
+  GridComponent,
+} from 'echarts/components'
+import VChart from 'vue-echarts'
+
+use([
+  CanvasRenderer,
+  PieChart,
+  TitleComponent,
+  TooltipComponent,
+  LegendComponent,
+  GaugeChart,
+  UniversalTransition,
+  GridComponent,
+])
 
 export default {
   layout: 'admin',
@@ -224,6 +320,9 @@ export default {
     return {
       title: `面板 - ${this.settings.system.sitename}`,
     }
+  },
+  components: {
+    VChart,
   },
   data() {
     return {
@@ -246,6 +345,8 @@ export default {
       },
       envs: [],
       loading: false,
+      gauges: [],
+      devices: [],
     }
   },
   computed: {
@@ -254,10 +355,17 @@ export default {
     },
   },
   created() {
-    Promise.all([this.getStats(), this.getEnvs()])
+    this.initDevice()
+    Promise.all([this.getStats(), this.getEnvs(), this.loopGetDevice()])
   },
   methods: {
     formatDatetime,
+    loopGetDevice() {
+      this.getDevice()
+      setTimeout(() => {
+        this.loopGetDevice()
+      }, 5000)
+    },
     async getStats() {
       const res = await getStats()
       if (res.status === 200) {
@@ -284,6 +392,195 @@ export default {
       this.loading = false
       this.$message.error(res.data.message || '更新失败')
     },
+    initDevice() {
+      const gauges = [
+        {
+          ...this.getGaugeOption('CPU', '0.00'),
+          labels: [
+            {
+              label: 'Cores',
+              value: '-',
+            },
+            {
+              label: 'Mhz',
+              value: '-',
+            },
+            {
+              label: '',
+              value: '-',
+            },
+          ],
+        },
+        {
+          ...this.getGaugeOption('内存', '0.00'),
+          labels: [
+            {
+              label: 'Used',
+              value: '-',
+            },
+            {
+              label: 'Free',
+              value: '-',
+            },
+            {
+              label: 'Total',
+              value: '-',
+            },
+          ],
+        },
+      ]
+      gauges.push({
+        ...this.getGaugeOption('磁盘', '0.00'),
+        labels: [
+          {
+            label: 'Used',
+            value: '-',
+          },
+          {
+            label: 'Free',
+            value: '-',
+          },
+          {
+            label: 'Total',
+            value: '-',
+          },
+        ],
+      })
+      this.gauges = gauges
+    },
+    async getDevice() {
+      const res = await getDevice()
+      if (res.status === 200) {
+        const gauges = [
+          {
+            ...this.getGaugeOption(
+              'CPU',
+              (res.data.cpu.percent || 0).toFixed(2) || '0.00'
+            ),
+            labels: [
+              {
+                label: 'Cores',
+                value: res.data.cpu.cores,
+              },
+              {
+                label: 'Mhz',
+                value: res.data.cpu.mhz,
+              },
+              {
+                label: '',
+                value: res.data.cpu.model_name,
+              },
+            ],
+          },
+          {
+            ...this.getGaugeOption(
+              '内存',
+              ((res.data.memory.used / res.data.memory.total) * 100).toFixed(
+                2
+              ) || '0.00'
+            ),
+            labels: [
+              {
+                label: 'Total',
+                value: formatBytes(res.data.memory.total),
+              },
+              {
+                label: 'Used',
+                value: formatBytes(res.data.memory.used),
+              },
+              {
+                label: 'Free',
+                value: formatBytes(
+                  res.data.memory.total - res.data.memory.used
+                ),
+              },
+            ],
+          },
+        ]
+        for (let disk of res.data.disk || []) {
+          gauges.push({
+            ...this.getGaugeOption(
+              '磁盘 ' + disk.disk_name,
+              (disk.percent || 0).toFixed(2) || '0.00'
+            ),
+            labels: [
+              {
+                label: 'Total',
+                value: formatBytes(disk.total),
+              },
+              {
+                label: 'Used',
+                value: formatBytes(disk.used),
+              },
+              {
+                label: 'Free',
+                value: formatBytes(disk.free),
+              },
+            ],
+          })
+        }
+        this.gauges = gauges
+      }
+    },
+    getGaugeOption(name, percent) {
+      return {
+        series: [
+          {
+            type: 'gauge',
+            axisLine: {
+              lineStyle: {
+                width: 10,
+                color: [
+                  [0.3, '#67e0e3'],
+                  [0.7, '#37a2da'],
+                  [1, '#fd666d'],
+                ],
+              },
+            },
+            pointer: {
+              itemStyle: {
+                color: 'inherit',
+              },
+            },
+            axisTick: {
+              distance: -30,
+              length: 8,
+              lineStyle: {
+                color: '#fff',
+                width: 2,
+              },
+            },
+            splitLine: {
+              distance: -15,
+              length: 20,
+              lineStyle: {
+                color: '#fff',
+                width: 4,
+              },
+            },
+            axisLabel: {
+              color: 'inherit',
+              distance: 10,
+              fontSize: 14,
+            },
+            detail: {
+              valueAnimation: true,
+              formatter: '{value} %',
+              color: 'inherit',
+              fontSize: 20,
+              offsetCenter: [0, '85%'],
+            },
+            data: [
+              {
+                value: percent,
+                name: name,
+                fontSize: 14,
+              },
+            ],
+          },
+        ],
+      }
+    },
   },
 }
 </script>
@@ -299,6 +596,27 @@ export default {
   }
   .opensource .el-link {
     margin-top: -3px;
+  }
+  .chart {
+    height: 234px;
+  }
+  .gauges {
+    min-height: 294px;
+    font-size: 14px;
+    ul,
+    li {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    small {
+      color: #999;
+    }
+    li {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
   }
 }
 </style>

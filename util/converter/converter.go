@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"fmt"
 	"moredoc/util"
+	"moredoc/util/command"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -12,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gofrs/uuid"
 	"go.uber.org/zap"
 )
 
@@ -46,11 +48,13 @@ func NewConverter(logger *zap.Logger, timeout ...time.Duration) *Converter {
 	}
 	defaultCachePath := "cache/convert"
 	os.MkdirAll(defaultCachePath, os.ModePerm)
-	return &Converter{
+	cvt := &Converter{
 		cachePath: defaultCachePath,
 		timeout:   expire,
 		logger:    logger.Named("converter"),
 	}
+	cvt.workspace = cvt.makeWorkspace()
+	return cvt
 }
 
 func (c *Converter) SetCachePath(cachePath string) {
@@ -112,8 +116,7 @@ func (c *Converter) ConvertMOBIToPDF(src string) (dst string, err error) {
 
 // ConvertPDFToTxt 将PDF转为TXT
 func (c *Converter) ConvertPDFToTxt(src string) (dst string, err error) {
-	workspace := c.makeWorkspace(src)
-	dst = workspace + "/dst.txt"
+	dst = c.workspace + "/dst.txt"
 	args := []string{
 		"convert",
 		"-o",
@@ -121,7 +124,7 @@ func (c *Converter) ConvertPDFToTxt(src string) (dst string, err error) {
 		src,
 	}
 	c.logger.Info("convert pdf to txt", zap.String("cmd", mutool), zap.Strings("args", args))
-	_, err = util.ExecCommand(mutool, args, c.timeout)
+	_, err = command.ExecCommand(mutool, args, c.timeout)
 	if err != nil {
 		c.logger.Error("convert pdf to txt", zap.String("cmd", mutool), zap.Strings("args", args), zap.Error(err))
 		return
@@ -167,8 +170,7 @@ func (c *Converter) ConvertPDFToPNG(src string, fromPage, toPage int) (pages []P
 }
 
 func (c *Converter) PDFToPDF(src string) (dst string, err error) {
-	workspace := c.makeWorkspace(src)
-	dst = workspace + "/dst.pdf"
+	dst = c.workspace + "/dst.pdf"
 	err = util.CopyFile(src, dst)
 	if err != nil {
 		c.logger.Error("copy file error", zap.Error(err))
@@ -179,8 +181,7 @@ func (c *Converter) PDFToPDF(src string) (dst string, err error) {
 // ext 可选值： .png, .svg
 func (c *Converter) convertPDFToPage(src string, fromPage, toPage int, ext string) (pages []Page, err error) {
 	pageRange := fmt.Sprintf("%d-%d", fromPage, toPage)
-	workspace := c.makeWorkspace(src)
-	cacheFileFormat := workspace + "/%d" + ext
+	cacheFileFormat := c.workspace + "/%d" + ext
 	args := []string{
 		"convert",
 		"-o",
@@ -190,7 +191,7 @@ func (c *Converter) convertPDFToPage(src string, fromPage, toPage int, ext strin
 	}
 
 	c.logger.Info("convert pdf to page", zap.String("cmd", mutool), zap.Strings("args", args))
-	_, err = util.ExecCommand(mutool, args, c.timeout)
+	_, err = command.ExecCommand(mutool, args, c.timeout)
 	if err != nil {
 		c.logger.Error("convert pdf to page", zap.String("cmd", mutool), zap.Strings("args", args), zap.Error(err))
 		return
@@ -211,18 +212,17 @@ func (c *Converter) convertPDFToPage(src string, fromPage, toPage int, ext strin
 }
 
 func (c *Converter) convertToPDFBySoffice(src string) (dst string, err error) {
-	workspace := c.makeWorkspace(src)
-	dst = workspace + "/" + strings.TrimSuffix(filepath.Base(src), filepath.Ext(src)) + ".pdf"
+	dst = c.workspace + "/" + strings.TrimSuffix(filepath.Base(src), filepath.Ext(src)) + ".pdf"
 	args := []string{
 		"--headless",
 		"--convert-to",
 		"pdf",
 		"--outdir",
-		workspace,
+		c.workspace,
 	}
 	args = append(args, src)
 	c.logger.Info("convert to pdf by soffice", zap.String("cmd", soffice), zap.Strings("args", args))
-	_, err = util.ExecCommand(soffice, args, c.timeout)
+	_, err = command.ExecCommand(soffice, args, c.timeout)
 	if err != nil {
 		c.logger.Error("convert to pdf by soffice", zap.String("cmd", soffice), zap.Strings("args", args), zap.Error(err))
 	}
@@ -230,8 +230,7 @@ func (c *Converter) convertToPDFBySoffice(src string) (dst string, err error) {
 }
 
 func (c *Converter) convertToPDFByCalibre(src string) (dst string, err error) {
-	workspace := c.makeWorkspace(src)
-	dst = workspace + "/dst.pdf"
+	dst = c.workspace + "/dst.pdf"
 	args := []string{
 		src,
 		dst,
@@ -244,7 +243,7 @@ func (c *Converter) convertToPDFByCalibre(src string) (dst string, err error) {
 	}
 	os.MkdirAll(filepath.Dir(dst), os.ModePerm)
 	c.logger.Info("convert to pdf by calibre", zap.String("cmd", ebookConvert), zap.Strings("args", args))
-	_, err = util.ExecCommand(ebookConvert, args, c.timeout)
+	_, err = command.ExecCommand(ebookConvert, args, c.timeout)
 	if err != nil {
 		c.logger.Error("convert to pdf by calibre", zap.String("cmd", ebookConvert), zap.Strings("args", args), zap.Error(err))
 	}
@@ -259,7 +258,7 @@ func (c *Converter) CountPDFPages(file string) (pages int, err error) {
 	}
 	c.logger.Info("count pdf pages", zap.String("cmd", mutool), zap.Strings("args", args))
 	var out string
-	out, err = util.ExecCommand(mutool, args, c.timeout)
+	out, err = command.ExecCommand(mutool, args, c.timeout)
 	if err != nil {
 		c.logger.Error("count pdf pages", zap.String("cmd", mutool), zap.Strings("args", args), zap.Error(err))
 		return
@@ -307,7 +306,7 @@ func (c *Converter) CompressSVGBySVGO(svgFolder string) (err error) {
 	}
 	c.logger.Info("compress svg by svgo", zap.String("cmd", svgo), zap.Strings("args", args))
 	var out string
-	out, err = util.ExecCommand(svgo, args, c.timeout*10)
+	out, err = command.ExecCommand(svgo, args, c.timeout*10)
 	if err != nil {
 		c.logger.Error("compress svg by svgo", zap.String("cmd", svgo), zap.Strings("args", args), zap.Error(err))
 	}
@@ -348,12 +347,13 @@ func (c *Converter) CompressSVGByGZIP(svgFile string) (dst string, err error) {
 	return
 }
 
-func (c *Converter) makeWorkspace(src string) (workspaceDir string) {
+func (c *Converter) makeWorkspace() (workspaceDir string) {
 	if c.workspace != "" {
 		workspaceDir = c.workspace
 		return
 	}
-	c.workspace = strings.ReplaceAll(filepath.Join(c.cachePath, time.Now().Format(dirDteFmt), strings.TrimSuffix(filepath.Base(src), filepath.Ext(src))), "\\", "/")
+	uid := uuid.Must(uuid.NewV4()).String()
+	c.workspace = filepath.ToSlash(filepath.Join(c.cachePath, time.Now().Format(dirDteFmt), uid))
 	return c.workspace
 }
 

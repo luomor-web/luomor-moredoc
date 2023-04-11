@@ -14,6 +14,9 @@ indexes
 sitemap
 !util/sitemap
 license.cert
+*.cert
+/logs
+/util/cloudstore
 
-.DS_Store
 .idea
+.DS_Store

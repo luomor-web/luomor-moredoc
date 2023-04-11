@@ -1,12 +1,26 @@
 <template>
   <div class="page page-document">
     <el-row :gutter="20">
-      <el-col :span="scaleSpan">
+      <el-col :span="scaleSpan" class="doc-left">
         <el-card ref="docMain" shadow="never" class="doc-main">
           <div slot="header" class="clearfix">
             <h1>
               <img :src="`/static/images/${document.icon}_24.png`" alt="" />
               {{ document.title }}
+              <el-popover
+                class="hidden-xs-only"
+                placement="bottom"
+                width="200"
+                trigger="hover"
+                v-show="document.id > 0"
+              >
+                <div id="qrcode" ref="qrcode" class="qrcode text-center"></div>
+                <span slot="reference">
+                  <span target="_blank" class="share-wechat">
+                    <i class="fa fa-qrcode"></i>
+                  </span>
+                </span>
+              </el-popover>
             </h1>
             <el-breadcrumb separator-class="el-icon-arrow-right">
               <el-breadcrumb-item>
@@ -68,26 +82,46 @@
             </el-alert>
             <div class="mgt-20px"></div>
           </template>
-          <div ref="docPages" class="doc-pages">
-            <el-image
-              v-for="(page, index) in pages"
-              :key="index + page.src"
-              :src="page.src"
-              :alt="page.alt"
-              lazy
-              class="doc-page"
-              :style="{
-                width: pageWidth + 'px',
-                height: pageHeight + 'px',
-              }"
-            >
-            </el-image>
+          <div ref="docPages" class="doc-pages" @contextmenu.prevent>
+            <div v-if="isMobile" v-viewer>
+              <el-image
+                v-for="(page, index) in pages"
+                :key="index + page.src"
+                :src="page.src"
+                :alt="page.alt"
+                :data-source="page.lazySrc"
+                lazy
+                class="doc-page"
+                :style="{
+                  width: pageWidth + 'px',
+                  height: pageHeight + 'px',
+                }"
+              >
+              </el-image>
+            </div>
+            <div v-else>
+              <el-image
+                v-for="(page, index) in pages"
+                :key="index + page.src"
+                :src="page.src"
+                :alt="page.alt"
+                :data-source="page.lazySrc"
+                lazy
+                class="doc-page"
+                :style="{
+                  width: pageWidth + 'px',
+                  height: pageHeight + 'px',
+                }"
+              >
+              </el-image>
+            </div>
           </div>
           <div class="doc-page-more text-center">
-            <div>下载文档到电脑，方便使用</div>
+            <div>下载文档到本地，方便使用</div>
             <el-button
               type="primary"
               icon="el-icon-download"
+              :size="isMobile ? 'medium' : ''"
               :loading="downloading"
               @click="downloadDocument"
             >
@@ -99,11 +133,16 @@
                 >继续阅读</span
               >
             </div>
-            <div class="text-muted" v-else>
-              <small>- 可预览页数已预览完 -</small>
-            </div>
+            <template v-else>
+              <div v-if="document.pages != document.preview" class="text-muted">
+                <small
+                  >- 可预览页数已用完，剩余
+                  {{ document.pages - document.preview }} 页请下载阅读 -</small
+                >
+              </div>
+            </template>
           </div>
-          <div>
+          <div class="moreinfo">
             <div class="share-info">
               本文档由
               <nuxt-link
@@ -121,6 +160,7 @@
               <el-button
                 type="primary"
                 @click="showReport"
+                :size="isMobile ? 'medium' : ''"
                 plain
                 icon="el-icon-warning-outline"
                 >举报</el-button
@@ -129,6 +169,7 @@
                 type="primary"
                 icon="el-icon-download"
                 class="float-right"
+                :size="isMobile ? 'medium' : ''"
                 :loading="downloading"
                 @click="downloadDocument"
                 >下载文档({{ formatBytes(document.size) }})</el-button
@@ -137,7 +178,7 @@
                 v-if="favorite.id > 0"
                 type="primary"
                 plain
-                class="float-right"
+                class="float-right hidden-xs-only"
                 icon="el-icon-star-on"
                 @click="deleteFavorite"
                 >取消收藏</el-button
@@ -145,13 +186,23 @@
               <el-button
                 v-else
                 type="primary"
-                class="float-right"
+                class="float-right hidden-xs-only"
                 icon="el-icon-star-off"
                 @click="createFavorite"
                 >收藏</el-button
               >
             </div>
           </div>
+        </el-card>
+        <el-card
+          shadow="never"
+          class="mgt-20px relate-docs"
+          v-if="isMobile && relatedDocuments.length > 0"
+        >
+          <div slot="header">相关文档</div>
+          <document-simple-list
+            :docs="isMobile ? relatedDocuments.slice(0, 5) : relatedDocuments"
+          />
         </el-card>
         <el-card
           v-if="document.id > 0"
@@ -185,7 +236,7 @@
           <comment-list ref="commentList" :document-id="document.id" />
         </el-card>
       </el-col>
-      <el-col :span="24 - scaleSpan">
+      <el-col :span="24 - scaleSpan" class="hidden-xs-only">
         <el-card shadow="never">
           <div slot="header">分享用户</div>
           <user-card :hide-actions="true" :user="document.user" />
@@ -206,7 +257,13 @@
         <el-row>
           <el-col :span="18">
             <el-button-group class="btn-actions">
-              <el-tooltip content="全屏阅读">
+              <el-tooltip content="文档点评" v-if="isMobile">
+                <el-button
+                  icon="el-icon-chat-dot-square"
+                  @click="gotoComment"
+                ></el-button>
+              </el-tooltip>
+              <el-tooltip content="全屏阅读" class="hidden-xs-only">
                 <el-button
                   icon="el-icon-full-screen"
                   @click="fullscreen"
@@ -224,14 +281,14 @@
                   @click="createFavorite"
                 ></el-button>
               </el-tooltip>
-              <el-tooltip content="缩小">
+              <el-tooltip content="缩小" class="hidden-xs-only">
                 <el-button
                   icon="el-icon-zoom-out"
                   :disabled="scaleSpan === 18"
                   @click="zoomOut"
                 ></el-button>
               </el-tooltip>
-              <el-tooltip content="放大">
+              <el-tooltip content="放大" class="hidden-xs-only">
                 <el-button
                   icon="el-icon-zoom-in"
                   :disabled="scaleSpan === 24"
@@ -257,25 +314,30 @@
               </el-tooltip>
             </el-button-group>
             <el-button
-              class="btn-comment"
+              class="btn-comment hidden-xs-only"
               icon="el-icon-chat-dot-square"
               @click="gotoComment"
               >文档点评</el-button
             >
             <el-button-group class="float-right">
               <el-button type="primary" icon="el-icon-coin" class="btn-coin"
-                >{{ document.price || 0 }} 个魔豆</el-button
+                >{{ document.price || 0
+                }}<span class="hidden-xs-only">
+                  {{ settings.system.credit_name || '魔豆' }}</span
+                ></el-button
               >
               <el-button
                 type="primary"
                 icon="el-icon-download"
                 :loading="downloading"
                 @click="downloadDocument"
-                >下载文档({{ formatBytes(document.size) }})</el-button
-              >
+                >下载<span class="hidden-xs-only"
+                  >({{ formatBytes(document.size) }})</span
+                >
+              </el-button>
             </el-button-group>
           </el-col>
-          <el-col :span="6" class="text-right">
+          <el-col :span="6" class="text-right hidden-xs-only">
             <el-button icon="el-icon-top" @click="scrollTop"
               >回到顶部</el-button
             >
@@ -283,7 +345,11 @@
         </el-row>
       </el-card>
     </div>
-    <el-dialog title="举报文档" :visible.sync="reportVisible" width="520px">
+    <el-dialog
+      title="举报文档"
+      :visible.sync="reportVisible"
+      :width="isMobile ? '95%' : '640px'"
+    >
       <FormReport
         ref="reportForm"
         :init-report="report"
@@ -307,6 +373,7 @@ import {
 import { getFavorite, createFavorite, deleteFavorite } from '~/api/favorite'
 import { formatDatetime, formatBytes, getIcon } from '~/utils/utils'
 import { documentStatusOptions } from '~/utils/enum'
+import QRCode from 'qrcodejs2' // 引入qrcode
 import FormComment from '~/components/FormComment.vue'
 import CommentList from '~/components/CommentList.vue'
 export default {
@@ -333,6 +400,7 @@ export default {
       downloading: false,
       documentId: parseInt(this.$route.params.id) || 0,
       pages: [],
+      pagesPerRead: 10,
       pageHeight: 0,
       pageWidth: 0,
       currentPage: 1,
@@ -375,6 +443,7 @@ export default {
   computed: {
     ...mapGetters('category', ['categoryMap']),
     ...mapGetters('setting', ['settings']),
+    ...mapGetters('device', ['isMobile']),
   },
   created() {
     Promise.all([
@@ -386,6 +455,7 @@ export default {
   },
   mounted() {
     window.addEventListener('scroll', this.handleScroll)
+    window.addEventListener('resize', this.handleResize)
     try {
       this.$refs.docMain.$el.addEventListener(
         'scroll',
@@ -398,6 +468,7 @@ export default {
   },
   beforeDestroy() {
     window.removeEventListener('scroll', this.handleScroll)
+    window.removeEventListener('resize', this.handleResize)
     try {
       this.$refs.docMain.$el.removeEventListener(
         'scroll',
@@ -417,56 +488,69 @@ export default {
         id: this.documentId,
         with_author: true,
       })
-      if (res.status === 200) {
-        const doc = res.data || {}
-        doc.score = parseFloat(doc.score) / 100 || 4.0
 
-        if (!doc.preview || doc.preview >= doc.pages) {
-          doc.preview = doc.pages
-        }
-
-        // 限定每次预览页数
-        let preview = 2
-        if (doc.preview < preview) {
-          preview = doc.preview
-        }
-
-        // 限定预览页数，拼装图片链接
-        const pages = []
-        for (let i = 1; i <= preview; i++) {
-          const src = doc.enable_gzip
-            ? `/view/page/${doc.attachment.hash}/${i}.gzip.svg`
-            : `/view/page/${doc.attachment.hash}/${i}.svg`
-          pages.push({
-            lazySrc: src,
-            src: src,
-            alt: `${doc.title} 第${i + 1}页`,
-          })
-        }
-
-        this.breadcrumbs = (doc.category_id || []).map((id) => {
-          return this.categoryMap[id]
-        })
-
-        doc.icon = getIcon(doc.ext)
-        this.pages = pages
-        this.document = doc
-        this.pageWidth = this.$refs.docPages.offsetWidth
-        this.pageHeight =
-          (this.$refs.docPages.offsetWidth / doc.width) * doc.height
-
-        if (doc.status !== 2) {
-          // 2 为文档已转换成功，不需要展示提示
-          this.documentStatusOptions.map((item) => {
-            if (item.value === doc.status) {
-              this.tips = `当前文档【${item.label}】，可能暂时无法正常提供预览，建议您下载到本地进行阅读。`
-            }
-          })
-        }
-      } else {
+      if (res.status !== 200) {
         this.$message.error(res.data.message)
         this.$router.replace('/404')
+        return
       }
+      const doc = res.data || {}
+      doc.score = parseFloat(doc.score) / 100 || 4.0
+
+      if (!doc.preview || doc.preview >= doc.pages) {
+        doc.preview = doc.pages
+      }
+
+      // 限定每次预览页数
+      let preview = 2
+      if (doc.preview < preview) {
+        preview = doc.preview
+      }
+
+      // 限定预览页数，拼装图片链接
+      const pages = []
+      for (let i = 1; i <= preview; i++) {
+        const src = doc.enable_gzip
+          ? `/view/page/${doc.attachment.hash}/${i}.gzip.svg`
+          : `/view/page/${doc.attachment.hash}/${i}.svg`
+        pages.push({
+          lazySrc: src,
+          src: src,
+          alt: `${doc.title} 第${i + 1}页`,
+        })
+      }
+
+      this.breadcrumbs = (doc.category_id || []).map((id) => {
+        return this.categoryMap[id]
+      })
+
+      doc.icon = getIcon(doc.ext)
+      this.pages = pages
+      this.document = doc
+      this.pageWidth = this.$refs.docPages.offsetWidth
+      this.pageHeight =
+        (this.$refs.docPages.offsetWidth / doc.width) * doc.height
+
+      if (doc.status !== 2) {
+        // 2 为文档已转换成功，不需要展示提示
+        this.documentStatusOptions.map((item) => {
+          if (item.value === doc.status) {
+            this.tips = `当前文档【${item.label}】，可能暂时无法正常提供预览，建议您下载到本地进行阅读。`
+          }
+        })
+      }
+      this.genQrcode()
+    },
+    handleResize() {
+      this.calcPageSize()
+    },
+    calcPageSize() {
+      try {
+        this.pageWidth = this.$refs.docPages.offsetWidth
+        this.pageHeight =
+          (this.$refs.docPages.offsetWidth / this.document.width) *
+          this.document.height
+      } catch (error) {}
     },
     showReport() {
       this.report.document_id = this.document.id
@@ -486,6 +570,10 @@ export default {
       }
       this.currentPage = currentPage
       this.pages[currentPage - 1].src = this.pages[currentPage - 1].lazySrc
+      if (currentPage < this.pages.length) {
+        // 多加载一页
+        this.pages[currentPage].src = this.pages[currentPage].lazySrc
+      }
 
       // 右侧相关文档固定
       try {
@@ -684,7 +772,9 @@ export default {
       }
     },
     continueRead() {
-      let end = this.pages.length + 5
+      let pagesPerRead =
+        this.settings.display.pages_per_read || this.pagesPerRead
+      let end = this.pages.length + pagesPerRead
       if (end > this.document.preview) {
         end = this.document.preview
       }
@@ -739,10 +829,26 @@ export default {
         this.$message.error(res.data.message)
       }
     },
+    genQrcode() {
+      // 把之前可能存在的二维码清空
+      this.$refs.qrcode.innerHTML =
+        '<div style="margin-bottom:10px">手机扫码，畅享阅读</div>'
+      // eslint-disable-next-line no-new
+      new QRCode('qrcode', {
+        width: 200,
+        height: 200,
+        text: location.href,
+        colorDark: '#000',
+        colorLight: '#fff',
+      })
+    },
   },
 }
 </script>
 <style lang="scss">
+.viewer-canvas > img {
+  background-color: #fff;
+}
 .page-document {
   .doc-main {
     overflow: auto;
@@ -757,6 +863,17 @@ export default {
     img {
       position: relative;
       top: 3px;
+    }
+    .fa-qrcode {
+      color: #aaa;
+      cursor: pointer;
+      margin-left: 5px;
+      font-size: 26px;
+      top: 2px;
+      position: relative;
+      &:hover {
+        color: unset;
+      }
     }
   }
   .el-breadcrumb {
@@ -876,6 +993,78 @@ export default {
     top: 3px;
     margin-right: 10px;
     color: #565656;
+  }
+}
+
+@media screen and (max-width: $mobile-width) {
+  .el-image-viewer__wrapper {
+    .el-image-viewer__actions {
+      .el-icon-refresh-left,
+      .el-image-viewer__actions__divider,
+      .el-icon-refresh-right {
+        display: none;
+      }
+    }
+    .el-image-viewer__canvas {
+      display: block;
+      overflow: auto;
+      padding-top: 20px;
+      .el-image-viewer__img {
+        transform-origin: 0 0 !important;
+      }
+    }
+  }
+
+  .viewer-canvas > img {
+    // 调整到1.3被比较合适，这样可以在手机上看到更清晰的内容
+    transform: scale(1.3) !important;
+  }
+
+  .page-document {
+    .doc-left {
+      width: 100% !important;
+    }
+    .doc-info {
+      float: left;
+      margin-top: 40px;
+      & > span {
+        margin-left: 0;
+        margin-right: 8px;
+        display: inline-block;
+        margin-top: 5px;
+      }
+    }
+    .doc-main {
+      .el-card__body {
+        padding-left: 0;
+        padding-right: 0;
+      }
+    }
+    .doc-pages {
+      .doc-page {
+        border-left: 0;
+        border-right: 0;
+      }
+    }
+    .doc-page-more {
+      border-left: 0;
+      border-right: 0;
+    }
+    .moreinfo {
+      padding: 0 15px;
+    }
+    .fixed-buttons {
+      min-width: 100%;
+      .el-col-18 {
+        width: 100% !important;
+      }
+      .btn-actions {
+        padding-left: 5px;
+      }
+      .el-card .el-button {
+        padding: 19px 10px;
+      }
+    }
   }
 }
 </style>

@@ -54,7 +54,7 @@ type Document struct {
 	ScoreCount    int             `form:"score_count" json:"score_count,omitempty" gorm:"column:score_count;type:int(11);size:11;default:0;comment:评分数量;"`
 	Price         int             `form:"price" json:"price,omitempty" gorm:"column:price;type:int(11);size:11;default:0;comment:价格，0表示免费;"`
 	Size          int64           `form:"size" json:"size,omitempty" gorm:"column:size;type:bigint(20);size:20;default:0;comment:文件大小;"`
-	Ext           string          `form:"ext" json:"ext,omitempty" gorm:"column:ext;type:varchar(16);size:16;comment:文件扩展名"`
+	Ext           string          `form:"ext" json:"ext,omitempty" gorm:"column:ext;type:varchar(16);size:16;index:idx_ext;comment:文件扩展名"`
 	Status        int             `form:"status" json:"status,omitempty" gorm:"column:status;type:smallint(6);size:6;default:0;index:status;comment:文档状态：0 待转换，1 转换中，2 转换完成，3 转换失败，4 禁用;"`
 	CreatedAt     *time.Time      `form:"created_at" json:"created_at,omitempty" gorm:"column:created_at;type:datetime;comment:创建时间;"`
 	UpdatedAt     *time.Time      `form:"updated_at" json:"updated_at,omitempty" gorm:"column:updated_at;type:datetime;comment:更新时间;"`
@@ -66,17 +66,6 @@ type Document struct {
 
 func (Document) TableName() string {
 	return tablePrefix + "document"
-}
-
-// CreateDocument 创建Document
-// TODO: 创建成功之后，注意相关表统计字段数值的增减
-func (m *DBModel) CreateDocument(document *Document) (err error) {
-	err = m.db.Create(document).Error
-	if err != nil {
-		m.logger.Error("CreateDocument", zap.Error(err))
-		return
-	}
-	return
 }
 
 // UpdateDocument 更新Document，如果需要更新指定字段，则请指定updateFields参数
@@ -152,6 +141,16 @@ func (m *DBModel) UpdateDocument(document *Document, categoryId []int64, updateF
 		return
 	}
 
+	return
+}
+
+func (m *DBModel) SetDocumentReconvert() (err error) {
+	err = m.db.Model(&Document{}).
+		Where("status = ?", DocumentStatusFailed).
+		Update("status", DocumentStatusPending).Error
+	if err != nil {
+		m.logger.Error("SetDocumentReconvert", zap.Error(err))
+	}
 	return
 }
 
@@ -252,8 +251,6 @@ func (m *DBModel) GetDocumentList(opt *OptionGetDocumentList) (documentList []Do
 }
 
 // DeleteDocument 删除数据
-// TODO: 删除数据之后，存在 document_id 的关联表，需要删除对应数据，同时相关表的统计数值，也要随着减少
-// TODO: 如果是删除文档，则文档所属分类以及用户的文档数量都需要减1（需要判断文档是否是禁用再做处理）
 func (m *DBModel) DeleteDocument(ids []int64, deletedUserId int64, deepDelete ...bool) (err error) {
 	var (
 		docs                  []Document
@@ -275,7 +272,7 @@ func (m *DBModel) DeleteDocument(ids []int64, deletedUserId int64, deepDelete ..
 		docCateMap[docCate.DocumentId] = append(docCateMap[docCate.DocumentId], docCate.CategoryId)
 	}
 
-	cfgScore := m.GetConfigOfScore(ConfigScoreDeleteDocument)
+	cfgScore := m.GetConfigOfScore(ConfigScoreDeleteDocument, ConfigScoreCreditName)
 
 	sess := m.db.Begin()
 	defer func() {
@@ -295,8 +292,6 @@ func (m *DBModel) DeleteDocument(ids []int64, deletedUserId int64, deepDelete ..
 	}
 
 	for _, doc := range docs {
-		// 文档不是禁用状态，且未被逻辑删除，则需要减少用户、分类下的文档统计数量
-		// if doc.Status != DocumentStatusDisabled && doc.DeletedAt == nil {
 		if doc.DeletedAt == nil {
 			err = sess.Model(modelUser).Where("id = ?", doc.UserId).Update("doc_count", gorm.Expr("doc_count - ?", 1)).Error
 			if err != nil {
@@ -351,7 +346,7 @@ func (m *DBModel) DeleteDocument(ids []int64, deletedUserId int64, deepDelete ..
 			if score < 0 {
 				score = -score
 			}
-			dynamic.Content += fmt.Sprintf("，扣除了 %d 魔豆", score)
+			dynamic.Content += fmt.Sprintf("，扣除了 %d %s", score, cfgScore.CreditName)
 			err = sess.Model(modelUser).Where("id = ?", doc.UserId).Update("credit_count", gorm.Expr("credit_count - ?", score)).Error
 			if err != nil {
 				m.logger.Error("DeleteDocument", zap.Error(err))
@@ -537,7 +532,7 @@ func (m *DBModel) CreateDocuments(documents []Document, categoryIds []int64) (do
 		}
 		content := fmt.Sprintf(`上传了文档《<a href="/document/%d">%s</a>》`, doc.Id, html.EscapeString(doc.Title))
 		if award > 0 {
-			content += fmt.Sprintf(`，获得了 %d 个魔豆奖励`, award)
+			content += fmt.Sprintf(`，获得了 %d %s奖励`, award, m.GetCreditName())
 		}
 		dynamics = append(dynamics, Dynamic{
 			UserId:  doc.UserId,
@@ -609,6 +604,9 @@ func (m *DBModel) ConvertDocument() (err error) {
 		}
 		return
 	}
+	defer func() {
+		m.SetDocumentConvertError(document.Id, err)
+	}()
 	// 文档转为PDF
 	cfg := m.GetConfigOfConverter()
 	m.SetDocumentStatus(document.Id, DocumentStatusConverting)
@@ -762,6 +760,59 @@ func (m *DBModel) CountDocument(status ...int) (count int64, err error) {
 	err = db.Count(&count).Error
 	if err != nil {
 		m.logger.Error("CountDocument", zap.Error(err))
+	}
+	return
+}
+
+func (m *DBModel) SetDocumentsCategory(documentId, categoryId []int64) (err error) {
+	tx := m.db.Begin()
+	defer func() {
+		if err != nil {
+			tx.Rollback()
+		} else {
+			tx.Commit()
+		}
+	}()
+
+	for _, id := range documentId {
+		// 1. 旧的文档分类，减少计数
+		var docCates []DocumentCategory
+		m.db.Model(&DocumentCategory{}).Where("document_id = ?", id).Find(&docCates)
+		for _, cate := range docCates {
+			err = tx.Model(&Category{}).Where("id = ?", cate.CategoryId).Update("doc_count", gorm.Expr("doc_count - ?", 1)).Error
+			if err != nil {
+				m.logger.Error("SetDocumentsCategory", zap.Error(err))
+				return
+			}
+		}
+
+		// 2. 删除旧的分类
+		err = tx.Model(&DocumentCategory{}).Where("document_id = ?", id).Delete(&DocumentCategory{}).Error
+		if err != nil {
+			m.logger.Error("SetDocumentsCategory", zap.Error(err))
+			return
+		}
+
+		// 3. 添加新的分类
+		docCates = []DocumentCategory{}
+		for _, cid := range categoryId {
+			docCates = append(docCates, DocumentCategory{
+				DocumentId: id,
+				CategoryId: cid,
+			})
+		}
+		err = tx.Create(&docCates).Error
+		if err != nil {
+			m.logger.Error("SetDocumentsCategory", zap.Error(err))
+			return
+		}
+
+		// 4. 更新文档分类统计
+		err = tx.Model(&Category{}).Where("id in (?)", categoryId).Update("doc_count", gorm.Expr("doc_count + ?", 1)).Error
+		if err != nil {
+			m.logger.Error("SetDocumentsCategory", zap.Error(err))
+			return
+		}
 	}
 	return
 }

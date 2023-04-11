@@ -1,6 +1,6 @@
 <template>
   <div class="page page-search">
-    <el-row class="header-links">
+    <el-row class="header-links hidden-xs-only">
       <el-col :span="24">
         <nuxt-link to="/" class="el-link el-link--default">文库首页</nuxt-link>
         <nuxt-link
@@ -29,7 +29,7 @@
     </el-row>
     <div class="search-box" ref="searchBox">
       <el-row :gutter="20">
-        <el-col :span="4">
+        <el-col :span="4" class="logo hidden-xs-only">
           <nuxt-link to="/" :title="settings.system.sitename"
             ><img
               :src="settings.system.logo"
@@ -37,7 +37,7 @@
               :alt="settings.system.sitename"
           /></nuxt-link>
         </el-col>
-        <el-col :span="14">
+        <el-col :span="14" class="search-form">
           <el-input
             v-model="query.wd"
             class="search-input"
@@ -45,16 +45,20 @@
             placeholder="请输入关键词"
             @keyup.enter.native="onSearch"
           >
-            <el-button slot="append" icon="el-icon-search" @click="onSearch" />
+            <i
+              slot="suffix"
+              @click="onSearch"
+              class="el-input__icon el-icon-search btn-search"
+            ></i>
           </el-input>
         </el-col>
       </el-row>
     </div>
     <el-row :gutter="20" class="mgt-20px">
-      <el-col :span="4" class="search-left">
+      <el-col :span="4" class="search-left-col">
         <!-- 空 card 占位，以便设置position:fixed -->
         <div class="emptyblock"></div>
-        <div ref="searchLeft">
+        <div ref="searchLeft" class="scroll">
           <el-card shadow="never">
             <div slot="header" class="clearfix">
               <span>类型</span>
@@ -106,7 +110,7 @@
           </el-card>
         </div>
       </el-col>
-      <el-col :span="14" class="search-main">
+      <el-col :span="14" class="search-main" ref="searchMain">
         <el-card v-loading="loading" shadow="never">
           <div slot="header">
             本次搜索耗时
@@ -148,7 +152,9 @@
                   >
                   </el-rate>
                   <span class="float-right"
-                    >{{ doc.price || 0 }} 魔豆 | {{ doc.pages || '-' }} 页 |
+                    >{{ doc.price || 0 }}
+                    {{ settings.system.credit_name || '魔豆' }} |
+                    {{ doc.pages || '-' }} 页 |
                     {{ formatBytes(doc.size) }}
                     <span class="hidden-xs-only"
                       >| {{ formatRelativeTime(doc.created_at) }}</span
@@ -162,7 +168,13 @@
             v-if="total > 0"
             :current-page="query.page"
             :page-size="query.size"
-            layout="total,  prev, pager, next, jumper"
+            :layout="
+              isMobile
+                ? 'total, prev, pager, next'
+                : 'total, prev, pager, next, jumper'
+            "
+            :pager-count="isMobile ? 5 : 7"
+            :small="isMobile"
             :total="total"
             @current-change="onPageChange"
           >
@@ -170,7 +182,7 @@
         </el-card>
       </el-col>
       <el-col v-if="keywords.length > 0" :span="6" class="search-right">
-        <div ref="searchRight">
+        <div ref="searchRight" class="scroll">
           <el-card shadow="never">
             <div slot="header" class="clearfix">
               <span>相关搜索词</span>
@@ -190,12 +202,12 @@
               >{{ keyword }}</nuxt-link
             >
           </el-card>
-          <el-card shadow="never" class="mgt-20px">
+          <!-- <el-card shadow="never" class="mgt-20px">
             <img
               src="https://www.wenkuzhijia.cn/static/Home/default/img/cover.png"
               alt=""
             />
-          </el-card>
+          </el-card> -->
         </div>
       </el-col>
     </el-row>
@@ -229,6 +241,7 @@ export default {
       ],
       searchSorts: [
         { label: '默认排序', value: 'default' },
+        { label: '最新排序', value: 'latest' },
         { label: '页数排序', value: 'pages' },
         { label: '评分排序', value: 'score' },
         { label: '大小排序', value: 'size' },
@@ -272,6 +285,7 @@ export default {
     ...mapGetters('user', ['user']),
     ...mapGetters('category', ['categoryTrees']),
     ...mapGetters('setting', ['settings']),
+    ...mapGetters('device', ['isMobile']),
   },
   watch: {
     '$route.query': {
@@ -314,13 +328,22 @@ export default {
       })
     },
     handleScroll() {
+      if (this.isMobile) return
       const scrollTop =
         document.documentElement.scrollTop || document.body.scrollTop
       const searchLeft = this.$refs.searchLeft
+      const searchMain = this.$refs.searchMain
       const searchRight = this.$refs.searchRight
       const searchBox = this.$refs.searchBox
 
       if (searchLeft) {
+        let maxHeight = 0
+        try {
+          maxHeight = searchMain.$el.offsetHeight - scrollTop - 70
+        } catch (error) {
+          console.log(error)
+        }
+
         if (this.searchLeftWidth === 0) {
           this.searchLeftWidth = searchLeft.offsetWidth
           this.searchRightWidth = searchRight.offsetWidth
@@ -334,6 +357,11 @@ export default {
           searchLeft.style.top = top
           searchLeft.style.zIndex = zIndex
           searchLeft.style.width = this.searchLeftWidth + 'px'
+          if (maxHeight > 0) {
+            searchLeft.style.maxHeight = maxHeight + 'px'
+            searchRight.style.maxHeight = maxHeight + 'px'
+          }
+
           searchRight.style.position = fixed
           searchRight.style.top = top
           searchRight.style.zIndex = zIndex
@@ -430,14 +458,23 @@ export default {
     .el-input-group__prepend {
       background-color: #dcdfe6;
     }
-    .el-input__inner {
-      border-right: 0;
-    }
     .search-input {
       margin-top: 5px;
     }
   }
-  .search-left {
+  .scroll {
+    overflow: auto;
+    &::-webkit-scrollbar {
+      width: 5px;
+    }
+    &::-webkit-scrollbar-thumb {
+      background-color: #ccc;
+    }
+    &::-webkit-scrollbar-thumb {
+      border-radius: 3px;
+    }
+  }
+  .search-left-col {
     .el-card:first-of-type {
       .el-card__body {
         padding-bottom: 0;
@@ -544,6 +581,49 @@ export default {
     .doc-info {
       color: #bdc3c7;
       font-size: 14px;
+    }
+  }
+}
+
+@media screen and (max-width: $mobile-width) {
+  .page-search {
+    .search-box {
+      padding: 15px 0;
+      margin-bottom: 15px;
+      .search-form {
+        width: 100% !important;
+        padding-top: 55px;
+      }
+    }
+
+    .search-left-col {
+      padding-left: 0 !important;
+      padding-right: 0 !important;
+      width: 100%;
+      a {
+        display: inline-block;
+        padding: 0 10px;
+        line-height: 30px;
+        font-size: 13px;
+      }
+    }
+    .search-main {
+      width: 100% !important;
+      margin-top: 15px;
+      padding-left: 0 !important;
+      padding-right: 0 !important;
+      .el-card__body {
+        min-height: unset;
+      }
+      .search-result li {
+        padding-top: 0;
+      }
+    }
+    .search-right {
+      width: 100% !important;
+      padding-left: 0 !important;
+      padding-right: 0 !important;
+      margin-top: 15px;
     }
   }
 }

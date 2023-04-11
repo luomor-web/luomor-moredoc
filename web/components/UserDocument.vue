@@ -91,12 +91,22 @@
       v-if="total > 0"
       :current-page="query.page"
       :page-size="query.size"
-      layout="total,  prev, pager, next, jumper"
+      :layout="
+        isMobile
+          ? 'total, prev, pager, next'
+          : 'total, prev, pager, next, jumper'
+      "
+      :pager-count="isMobile ? 5 : 7"
+      :small="isMobile"
       :total="total"
       @current-change="pageChange"
     >
     </el-pagination>
-    <el-dialog title="提示" :visible.sync="updateDocumentVisible" width="520px">
+    <el-dialog
+      title="编辑文档"
+      :visible.sync="updateDocumentVisible"
+      :width="isMobile ? '95%' : '640px'"
+    >
       <FormUpdateDocument
         :category-trees="categoryTrees"
         :init-document="document"
@@ -141,6 +151,7 @@ export default {
   computed: {
     ...mapGetters('user', ['user']),
     ...mapGetters('category', ['categoryTrees']),
+    ...mapGetters('device', ['isMobile']),
   },
   watch: {
     '$route.query': {

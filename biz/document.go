@@ -14,6 +14,7 @@ import (
 	"moredoc/model"
 	"moredoc/util"
 	"moredoc/util/filetil"
+	"moredoc/util/segword/jieba"
 
 	"github.com/golang-jwt/jwt"
 	"go.uber.org/zap"
@@ -79,7 +80,6 @@ func (s *DocumentAPIService) CreateDocument(ctx context.Context, req *pb.CreateD
 	var (
 		documents        []model.Document
 		docMapAttachment = make(map[int]int64)
-		jieba            = util.NewJieba()
 	)
 	for idx, doc := range req.Document {
 		attachment, ok := attachmentMap[doc.AttachmentId]
@@ -89,7 +89,7 @@ func (s *DocumentAPIService) CreateDocument(ctx context.Context, req *pb.CreateD
 
 		doc := model.Document{
 			Title:    doc.Title,
-			Keywords: strings.Join(jieba.SegWords(doc.Title, 10), ","),
+			Keywords: strings.Join(jieba.SegWords(doc.Title), ","),
 			UserId:   userCliams.UserId,
 			// UUID:     uuid.Must(uuid.NewV4()).String(),
 			Score:  300,
@@ -160,21 +160,27 @@ func (s *DocumentAPIService) DeleteDocument(ctx context.Context, req *pb.DeleteD
 		return nil, err
 	}
 
+	errNoPermission := status.Errorf(codes.PermissionDenied, "文档不存在或没有删除权限")
 	ids := req.Id
 	if err != nil { // 普通用户，只能删除自己创建的文档
 		userDocs, _, _ := s.dbModel.GetDocumentList(&model.OptionGetDocumentList{
 			WithCount:    false,
 			SelectFields: []string{"id"},
 			Ids:          util.Slice2Interface(req.Id),
+			QueryIn:      map[string][]interface{}{"user_id": {userClaims.UserId}},
 		})
 
 		if len(userDocs) == 0 {
-			return &emptypb.Empty{}, nil
+			return &emptypb.Empty{}, errNoPermission
 		}
 
 		for _, doc := range userDocs {
 			ids = append(ids, doc.Id)
 		}
+	}
+
+	if len(ids) == 0 {
+		return &emptypb.Empty{}, errNoPermission
 	}
 
 	err = s.dbModel.DeleteDocument(ids, userClaims.UserId)
@@ -279,6 +285,10 @@ func (s *DocumentAPIService) ListDocument(ctx context.Context, req *pb.ListDocum
 
 	if len(req.UserId) > 0 {
 		opt.QueryIn["user_id"] = []interface{}{req.UserId[0]}
+	}
+
+	if exts := filetil.GetExts(req.Ext); len(exts) > 0 {
+		opt.QueryIn["ext"] = util.Slice2Interface(exts)
 	}
 
 	_, err := s.checkPermission(ctx)
@@ -474,6 +484,11 @@ func (s *DocumentAPIService) listDocument(opt *model.OptionGetDocumentList) (*pb
 			}
 		}
 
+		for docId, errStr := range s.dbModel.GetConvertError(docIds...) {
+			index := docIndexMap[docId]
+			pbDocs[index].ConvertError = errStr
+		}
+
 		for _, docUser := range docUsers {
 			indexes := userIndexesMap[docUser.Id]
 			for _, index := range indexes {
@@ -537,7 +552,7 @@ func (s *DocumentAPIService) ListDocumentForHome(ctx context.Context, req *pb.Li
 			Page:         1,
 			Size:         limit,
 			Sort:         []string{"id desc"},
-			SelectFields: []string{"id", "title"},
+			SelectFields: []string{"id", "title", "ext"},
 		})
 
 		var pbDocs []*pb.Document
@@ -563,8 +578,13 @@ func (s *DocumentAPIService) SearchDocument(ctx context.Context, req *pb.SearchD
 		Size:      int(req.Size_),
 		QueryIn:   make(map[string][]interface{}),
 	}
+
 	opt.Size = util.LimitRange(opt.Size, 10, 10)
-	opt.Page = util.LimitRange(opt.Page, 1, 100)
+	opt.Page = util.LimitRange(opt.Page, 1, 10000) // 最大默认1w页，等同于不限制页数
+	maxPages := s.dbModel.GetConfigOfDisplay(model.ConfigDisplayMaxSearchPages).MaxSearchPages
+	if maxPages > 0 {
+		opt.Page = util.LimitRange(opt.Page, 1, int(maxPages))
+	}
 	if req.Wd == "" {
 		return res, nil
 	}
@@ -587,7 +607,11 @@ func (s *DocumentAPIService) SearchDocument(ctx context.Context, req *pb.SearchD
 	}
 
 	if req.Sort != "" {
-		opt.Sort = []string{req.Sort}
+		if req.Sort == "latest" {
+			opt.Sort = []string{"id"}
+		} else {
+			opt.Sort = []string{req.Sort}
+		}
 	}
 
 	docs, total, err := s.dbModel.GetDocumentList(opt)
@@ -595,6 +619,11 @@ func (s *DocumentAPIService) SearchDocument(ctx context.Context, req *pb.SearchD
 		return res, status.Errorf(codes.Internal, "搜索文档失败：%s", err)
 	}
 	util.CopyStruct(&docs, &res.Document)
+
+	if maxPages > 0 && total > int64(maxPages)*int64(opt.Size) {
+		total = int64(maxPages) * int64(opt.Size)
+	}
+
 	res.Total = total
 	res.Spend = fmt.Sprintf("%.3f", time.Since(now).Seconds())
 	return res, nil
@@ -608,9 +637,8 @@ func (s *DocumentAPIService) SearchDocument(ctx context.Context, req *pb.SearchD
 func (s *DocumentAPIService) DownloadDocument(ctx context.Context, req *pb.Document) (res *pb.DownloadDocumentReply, err error) {
 	cfg := s.dbModel.GetConfigOfDownload()
 	userClaims, err := s.checkLogin(ctx)
-	if err != nil && !cfg.EnableGuestDownload {
-		// 未登录且不允许游客下载
-		return res, status.Errorf(codes.Unauthenticated, err.Error())
+	if err != nil && !cfg.EnableGuestDownload { // 未登录且不允许游客下载
+		return res, err
 	}
 
 	var userId int64
@@ -653,7 +681,7 @@ func (s *DocumentAPIService) DownloadDocument(ctx context.Context, req *pb.Docum
 
 	user, _ := s.dbModel.GetUser(userId)
 	if doc.UserId != userId && user.CreditCount < doc.Price {
-		return res, status.Errorf(codes.PermissionDenied, "魔豆不足，无法下载")
+		return res, status.Errorf(codes.PermissionDenied, fmt.Sprintf("%s不足，无法下载", s.dbModel.GetCreditName()))
 	}
 
 	// 用户可以免费下载自己的文档
@@ -738,6 +766,40 @@ func (s *DocumentAPIService) SetDocumentScore(ctx context.Context, req *pb.Docum
 	err = s.dbModel.CreateDocumentScore(&score)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "评分失败：%s", err.Error())
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
+// SetDocumentReconvert
+func (s *DocumentAPIService) SetDocumentReconvert(ctx context.Context, req *emptypb.Empty) (res *emptypb.Empty, err error) {
+	_, err = s.checkPermission(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// 更新文档状态
+	err = s.dbModel.SetDocumentReconvert()
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "更新文档状态失败：%s", err.Error())
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
+func (s *DocumentAPIService) SetDocumentsCategory(ctx context.Context, req *pb.SetDocumentsCategoryRequest) (res *emptypb.Empty, err error) {
+	_, err = s.checkPermission(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(req.DocumentId) == 0 || len(req.CategoryId) == 0 {
+		return nil, status.Errorf(codes.InvalidArgument, "文档ID和分类ID均不能为空")
+	}
+
+	err = s.dbModel.SetDocumentsCategory(req.DocumentId, req.CategoryId)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "设置文档分类失败：%s", err.Error())
 	}
 
 	return &emptypb.Empty{}, nil

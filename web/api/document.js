@@ -24,6 +24,14 @@ export const setDocumentRecommend = (data) => {
   })
 }
 
+export const setDocumentReconvert = (data) => {
+  return service({
+    url: '/api/v1/document/reconvert',
+    method: 'put',
+    data,
+  })
+}
+
 export const deleteDocument = (params) => {
   return service({
     url: '/api/v1/document',
@@ -124,6 +132,14 @@ export const setDocumentScore = (data) => {
   return service({
     url: '/api/v1/document/score',
     method: 'post',
+    data,
+  })
+}
+
+export const setDocumentsCategory = (data) => {
+  return service({
+    url: '/api/v1/document/category',
+    method: 'put',
     data,
   })
 }

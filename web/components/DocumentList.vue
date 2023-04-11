@@ -30,8 +30,10 @@
               >
               </el-rate>
               <span class="float-right">
-                {{ doc.price || 0 }} 魔豆 <span class="line">|</span>
-                {{ doc.pages || '-' }} 页 <span class="line">|</span>
+                {{ doc.price || 0 }}
+                {{ settings.system.credit_name || '魔豆' }}
+                <span class="line">|</span> {{ doc.pages || '-' }} 页
+                <span class="line">|</span>
                 {{ formatBytes(doc.size) || '-' }}
                 <span class="hidden-xs-only"
                   ><span class="line">|</span>
@@ -51,6 +53,7 @@
 <script>
 import DocumentCover from './DocumentCover.vue'
 import { formatBytes, formatDatetime, getIcon } from '~/utils/utils'
+import { mapGetters } from 'vuex'
 export default {
   name: 'DocumentList',
   components: { DocumentCover },
@@ -62,6 +65,9 @@ export default {
   },
   data() {
     return {}
+  },
+  computed: {
+    ...mapGetters('setting', ['settings']),
   },
   methods: {
     formatBytes,
@@ -92,6 +98,7 @@ export default {
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      max-width: 100%;
       img {
         height: 18px;
         position: relative;

@@ -3,45 +3,43 @@
     <el-row>
       <el-col :span="24">
         <el-card shadow="never" ref="breadcrumb">
-          <template v-if="categoryChildren.length > 0">
-            <div slot="header" class="clearfix">
-              <el-breadcrumb separator="/">
-                <el-breadcrumb-item>
-                  <nuxt-link to="/"
-                    ><i class="el-icon-s-home"></i> 首页</nuxt-link
-                  >
-                </el-breadcrumb-item>
-                <el-breadcrumb-item
-                  v-for="item in breadcrumbs"
-                  :key="'bread1-' + item.id"
-                  :to="`/category/${item.id}`"
-                >
-                  <el-dropdown v-if="item.siblings.length > 0">
-                    <span class="el-dropdown-link">
-                      {{ item.title
-                      }}<i class="el-icon-arrow-down el-icon--right"></i>
-                    </span>
-                    <el-dropdown-menu slot="dropdown">
-                      <el-dropdown-item
-                        v-for="ss in item.siblings"
-                        :key="'s1-' + ss.id"
-                      >
-                        <nuxt-link
-                          class="el-link el-link--default block"
-                          :class="{
-                            'el-link--primary': ss.id === item.id,
-                          }"
-                          :to="`/category/${ss.id}`"
-                          >{{ ss.title }}</nuxt-link
-                        ></el-dropdown-item
-                      >
-                    </el-dropdown-menu>
-                  </el-dropdown>
-                  <span v-else>{{ item.title }}</span>
-                </el-breadcrumb-item>
-              </el-breadcrumb>
-            </div>
-            <div class="category-children">
+          <div slot="header" class="clearfix">
+            <el-breadcrumb separator="/">
+              <el-breadcrumb-item>
+                <nuxt-link to="/"><i class="fa fa-home"></i> 首页</nuxt-link>
+              </el-breadcrumb-item>
+              <el-breadcrumb-item
+                v-for="item in breadcrumbs"
+                :key="'bread1-' + item.id"
+              >
+                <el-dropdown v-if="item.siblings.length > 0">
+                  <span class="el-dropdown-link">
+                    {{ item.title
+                    }}<i class="el-icon-arrow-down el-icon--right"></i>
+                  </span>
+                  <el-dropdown-menu slot="dropdown">
+                    <el-dropdown-item
+                      v-for="ss in item.siblings"
+                      :key="'s1-' + ss.id"
+                    >
+                      <nuxt-link
+                        class="el-link el-link--default block"
+                        :class="{
+                          'el-link--primary': ss.id === item.id,
+                        }"
+                        :to="`/category/${ss.id}`"
+                        >{{ ss.title }}</nuxt-link
+                      ></el-dropdown-item
+                    >
+                  </el-dropdown-menu>
+                </el-dropdown>
+                <span v-else>{{ item.title }}</span>
+              </el-breadcrumb-item>
+            </el-breadcrumb>
+          </div>
+          <div class="item-row" v-if="categoryChildren.length > 0">
+            <div class="item-name">分类</div>
+            <div class="item-content">
               <nuxt-link
                 v-for="child in categoryChildren"
                 :key="'tree-' + child.id"
@@ -51,40 +49,25 @@
                 >{{ child.title }}</nuxt-link
               >
             </div>
-          </template>
-          <el-breadcrumb v-else separator="/">
-            <el-breadcrumb-item>
-              <nuxt-link to="/"><i class="el-icon-s-home"></i> 首页</nuxt-link>
-            </el-breadcrumb-item>
-            <el-breadcrumb-item
-              v-for="item in breadcrumbs"
-              :key="'bread2-' + item.id"
-              :to="`/category/${item.id}`"
-            >
-              <el-dropdown v-if="item.siblings.length > 0">
-                <span class="el-dropdown-link">
-                  {{ item.title
-                  }}<i class="el-icon-arrow-down el-icon--right"></i>
-                </span>
-                <el-dropdown-menu slot="dropdown">
-                  <el-dropdown-item
-                    v-for="ss in item.siblings"
-                    :key="'s2-' + ss.id"
-                  >
-                    <nuxt-link
-                      class="el-link el-link--default block"
-                      :class="{
-                        'el-link--primary': ss.id === item.id,
-                      }"
-                      :to="`/category/${ss.id}`"
-                      >{{ ss.title }}</nuxt-link
-                    ></el-dropdown-item
-                  >
-                </el-dropdown-menu>
-              </el-dropdown>
-              <span v-else>{{ item.title }}</span>
-            </el-breadcrumb-item>
-          </el-breadcrumb>
+          </div>
+          <div class="item-row">
+            <div class="item-name">类型</div>
+            <div class="item-content">
+              <nuxt-link
+                v-for="item in exts"
+                :key="item.value"
+                :to="{ query: { ext: item.value } }"
+                class="el-link"
+                :class="
+                  item.value === $route.query.ext ||
+                  (!item.value && !$route.query.ext)
+                    ? 'el-link--primary'
+                    : 'el-link--default'
+                "
+                >{{ item.label }}</nuxt-link
+              >
+            </div>
+          </div>
         </el-card>
       </el-col>
     </el-row>
@@ -122,7 +105,7 @@
           </div>
           <div v-loading="loading" class="doc-list-data">
             <document-list v-if="documents.length > 0" :documents="documents" />
-            <div v-if="empty" class="no-data">
+            <div v-if="empty && documents.length === 0" class="no-data">
               <el-empty description="暂无数据"></el-empty>
             </div>
           </div>
@@ -130,14 +113,20 @@
             v-if="total > 0"
             :current-page="query.page"
             :page-size="size"
-            layout="total,  prev, pager, next, jumper"
+            :layout="
+              isMobile
+                ? 'total, prev, pager, next'
+                : 'total, prev, pager, next, jumper'
+            "
+            :pager-count="isMobile ? 5 : 7"
+            :small="isMobile"
             :total="total"
             @current-change="pageChange"
           >
           </el-pagination>
         </el-card>
       </el-col>
-      <el-col :span="6">
+      <el-col :span="6" class="hidden-xs-only">
         <el-card shadow="never" class="keywords" ref="keywords">
           <div slot="header">
             <el-row>
@@ -195,6 +184,15 @@ export default {
       cardWidth: 0,
       title: '',
       hasExpand: false,
+      exts: [
+        { label: '不限', value: '' },
+        { label: 'PDF', value: 'pdf' },
+        { label: 'DOC', value: 'doc' },
+        { label: 'PPT', value: 'ppt' },
+        { label: 'XLS', value: 'xls' },
+        { label: 'TXT', value: 'txt' },
+        { label: '其它', value: 'other' },
+      ],
     }
   },
   head() {
@@ -217,6 +215,7 @@ export default {
   computed: {
     ...mapGetters('category', ['categories', 'categoryMap']),
     ...mapGetters('setting', ['settings']),
+    ...mapGetters('device', ['isMobile']),
   },
   watch: {
     filterText(val) {
@@ -323,6 +322,7 @@ export default {
       this.$router.push({
         path: `/category/${this.categoryId}`,
         query: {
+          ...this.$route.query,
           sort: tab.name,
         },
       })
@@ -373,6 +373,7 @@ export default {
         page: this.query.page,
         size: this.size,
         category_id: this.categoryId,
+        ext: this.$route.query.ext,
         field: [
           'id',
           'title',
@@ -420,58 +421,37 @@ export default {
 .page-category {
   .el-breadcrumb__inner {
     cursor: pointer !important;
-  }
-  .categories {
-    .el-card__header {
-      padding-top: 0;
-      padding-bottom: 0;
-      .header-title {
-        line-height: 56px;
-        span {
-          cursor: pointer;
-        }
-      }
-      .el-input {
-        top: 10px;
-        .el-input__inner {
-          height: 35px;
-          line-height: 35px;
-        }
-      }
-    }
-    .el-tree-node__content {
-      height: 35px;
-    }
-    [role='treeitem'][aria-expanded='true'] > .el-tree-node__content {
-      background-color: #f5f7fa;
-      color: #409eff;
-      font-weight: bold;
+    a {
+      font-weight: normal;
     }
   }
-  .category-children {
+  .item-row {
+    display: flex;
+    .item-name {
+      width: 60px;
+      font-size: 15px;
+      color: #bbb;
+    }
+    .item-content {
+      flex: 1;
+    }
     a {
       display: inline-block;
       margin-right: 20px;
       margin-bottom: 20px;
+      font-weight: normal;
     }
-    margin-bottom: -20px;
+    &:last-of-type {
+      margin-bottom: -20px;
+    }
   }
+
   .doc-list-data {
     min-height: 200px;
     .no-data {
       text-align: center;
       font-size: 14px;
       color: #aaa;
-    }
-  }
-  .categories-none-expand {
-    .el-card__body {
-      .el-tree-node__expand-icon.is-leaf {
-        display: none;
-      }
-      .el-tree-node__label {
-        padding-left: 5px;
-      }
     }
   }
   .doc-list {
@@ -501,6 +481,74 @@ export default {
         background-color: #409eff;
         border-color: #409eff;
         color: #fff;
+      }
+    }
+  }
+}
+@media screen and (max-width: $mobile-width) {
+  .page-category {
+    .el-col-18 {
+      width: 100% !important;
+    }
+    .item-row {
+      padding-bottom: 7px;
+      a {
+        margin-right: 10px;
+        margin-bottom: 10px;
+      }
+    }
+    .doc-list {
+      .el-card__header {
+        padding: 0 10px;
+        .el-tabs__item {
+          line-height: 40px;
+          height: 40px;
+          padding: 0 10px;
+        }
+      }
+      .el-rate__icon {
+        font-size: 15px;
+      }
+    }
+  }
+}
+</style>
+<style scoped lang="scss">
+@media screen and (max-width: $mobile-width) {
+  :deep .com-document-list {
+    // h3 {
+    //   a {
+    //     white-space: inherit;
+    //     overflow: auto;
+    //     text-overflow: inherit;
+    //   }
+    // }
+    .doc-cover {
+      width: 25%;
+      padding-right: 5px !important;
+      .el-image {
+        border: 1px solid #efefef;
+      }
+    }
+    .el-col-20 {
+      width: 75%;
+    }
+    .doc-desc {
+      // display: none;
+      width: 100%;
+      font-size: 14px;
+      -webkit-line-clamp: 2;
+      height: 48px;
+      line-height: 160%;
+      padding-top: 8px;
+    }
+    .doc-info {
+      font-size: 12px;
+      .el-rate {
+        float: right;
+      }
+      .float-right {
+        float: left;
       }
     }
   }

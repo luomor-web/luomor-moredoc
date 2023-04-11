@@ -62,12 +62,26 @@ export default {
     margin: 0 auto;
   }
   .el-card {
-    width: 520px;
+    width: 640px;
     max-width: 100%;
     margin: 100px auto;
     margin-right: 0;
     .el-card__body {
       padding-bottom: 0;
+    }
+  }
+}
+
+@media screen and (max-width: $mobile-width) {
+  .page-register {
+    background: none !important;
+    & > div {
+      width: 100%;
+      margin: 0;
+    }
+    .el-card {
+      width: 100%;
+      margin: 20px 0;
     }
   }
 }

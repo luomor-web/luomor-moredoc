@@ -11,6 +11,7 @@ import (
 	"moredoc/middleware/auth"
 	"moredoc/model"
 	"moredoc/util"
+	"moredoc/util/device"
 
 	"github.com/PuerkitoBio/goquery"
 	"go.uber.org/zap"
@@ -47,6 +48,7 @@ func (s *ConfigAPIService) UpdateConfig(ctx context.Context, req *pb.Configs) (*
 		fmt.Println(err.Error())
 	}
 
+	doesUpdateSEO := false
 	isEmail := false
 	for idx, cfg := range cfgs {
 		if cfg.Category == model.ConfigCategoryEmail && cfg.Name == model.ConfigEmailPassword && cfg.Value == "******" {
@@ -54,6 +56,9 @@ func (s *ConfigAPIService) UpdateConfig(ctx context.Context, req *pb.Configs) (*
 			cfgs[idx].Value = s.dbModel.GetConfigOfEmail(model.ConfigEmailPassword).Password
 		}
 		isEmail = isEmail || cfg.Category == model.ConfigCategoryEmail
+		if cfg.Category == model.ConfigCategorySystem {
+			doesUpdateSEO = true
+		}
 	}
 
 	err = s.dbModel.UpdateConfigs(cfgs, "value")
@@ -69,6 +74,10 @@ func (s *ConfigAPIService) UpdateConfig(ctx context.Context, req *pb.Configs) (*
 				return nil, status.Error(codes.Internal, "邮件发送失败:"+err.Error())
 			}
 		}
+	}
+
+	if doesUpdateSEO {
+		s.dbModel.InitSEO()
 	}
 
 	return &emptypb.Empty{}, nil
@@ -111,6 +120,7 @@ func (s *ConfigAPIService) GetSettings(ctx context.Context, req *emptypb.Empty) 
 		System:   &pb.ConfigSystem{},
 		Footer:   &pb.ConfigFooter{},
 		Security: &pb.ConfigSecurity{},
+		Display:  &pb.ConfigDisplay{},
 	}
 
 	// captcha := s.dbModel.GetConfigOfCaptcha()
@@ -136,6 +146,7 @@ func (s *ConfigAPIService) GetSettings(ctx context.Context, req *emptypb.Empty) 
 		}
 	}
 	res.System.Version = util.Version
+	res.System.CreditName = s.dbModel.GetConfigOfScore(model.ConfigScoreCreditName).CreditName
 	footer := s.dbModel.GetConfigOfFooter()
 	if err := util.CopyStruct(&footer, res.Footer); err != nil {
 		s.logger.Error("util.CopyStruct", zap.Any("footer", footer), zap.Any("res.Footer", res.Footer), zap.Error(err))
@@ -144,6 +155,11 @@ func (s *ConfigAPIService) GetSettings(ctx context.Context, req *emptypb.Empty) 
 	security := s.dbModel.GetConfigOfSecurity()
 	if err := util.CopyStruct(&security, res.Security); err != nil {
 		s.logger.Error("util.CopyStruct", zap.Any("security", security), zap.Any("res.Security", res.Security), zap.Error(err))
+	}
+
+	display := s.dbModel.GetConfigOfDisplay()
+	if err := util.CopyStruct(&display, res.Display); err != nil {
+		s.logger.Error("util.CopyStruct", zap.Any("display", display), zap.Any("res.Display", res.Display), zap.Error(err))
 	}
 
 	return res, nil
@@ -165,6 +181,7 @@ func (s *ConfigAPIService) GetStats(ctx context.Context, req *emptypb.Empty) (re
 	}
 	res.Os, _ = util.GetOSRelease()
 	res.UserCount, _ = s.dbModel.CountUser()
+	res.UserCount += s.dbModel.GetConfigOfDisplay(model.ConfigDisplayVirtualRegisterCount).VirtualRegisterCount
 	res.DocumentCount, _ = s.dbModel.CountDocument()
 	_, errPermission := s.checkPermission(ctx)
 	if errPermission == nil {
@@ -249,4 +266,42 @@ func (s *ConfigAPIService) GetEnvs(ctx context.Context, req *emptypb.Empty) (res
 	}
 	res.Envs = envs
 	return
+}
+
+func (s *ConfigAPIService) GetDeviceInfo(ctx context.Context, req *emptypb.Empty) (res *pb.DeviceInfo, err error) {
+	res = &pb.DeviceInfo{
+		Cpu:    &pb.CPUInfo{},
+		Memory: &pb.MemoryInfo{},
+	}
+	cpu := device.GetCPU()
+
+	err = util.CopyStruct(&cpu, res.Cpu)
+	if err != nil {
+		s.logger.Error("util.CopyStruct", zap.Any("cpu", cpu), zap.Any("res.Cpu", res.Cpu), zap.Error(err))
+		return
+	}
+	res.Cpu.Cores = int32(runtime.NumCPU())
+
+	mem := device.GetMemory()
+	err = util.CopyStruct(&mem, res.Memory)
+	if err != nil {
+		s.logger.Error("util.CopyStruct", zap.Any("mem", mem), zap.Any("res.Memory", res.Memory), zap.Error(err))
+		return
+	}
+
+	res.Memory.Free = res.Memory.Total - res.Memory.Used
+
+	disks := device.GetDisk()
+	if len(disks) > 0 {
+		for _, disk := range disks {
+			pbDisk := &pb.DiskInfo{}
+			err = util.CopyStruct(&disk, pbDisk)
+			if err != nil {
+				s.logger.Error("util.CopyStruct", zap.Any("disk", disk), zap.Any("res.Disk", res.Disk), zap.Error(err))
+				return
+			}
+			res.Disk = append(res.Disk, pbDisk)
+		}
+	}
+	return res, nil
 }
